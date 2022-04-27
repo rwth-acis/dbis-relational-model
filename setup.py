@@ -1,12 +1,16 @@
 import pathlib
 from setuptools import setup
-from assets.Version import Version
+
+class Version(object):
+    name="relational_model"
+    description="RWTH Aachen Computer Science i5/dbis assets for Lecture Datenbanken und Informationssysteme"
+    version='0.0.1'
+
 # The directory containing this file
 HERE = pathlib.Path(__file__).parent.resolve()
 
 # The text of the README file
 README = (HERE / "README.md").read_text()
-requirements = (HERE / 'assets' / 'requirements.txt').read_text(encoding='utf-8').split("\n")
 
 # This call to setup() does all the work
 setup(
@@ -25,7 +29,7 @@ setup(
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9'
     ],
-    packages=["excmanager"],
+    packages=["relational_model"],
     include_package_data=True,
-    install_requires=requirements
+    install_requires=[]
 )

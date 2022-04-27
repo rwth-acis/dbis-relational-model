@@ -1,0 +1,9 @@
+LICENSE
+README.md
+setup.py
+dbis_relational_model.egg-info/PKG-INFO
+dbis_relational_model.egg-info/SOURCES.txt
+dbis_relational_model.egg-info/dependency_links.txt
+dbis_relational_model.egg-info/top_level.txt
+relational_model/__init__.py
+relational_model/relational_model.py
