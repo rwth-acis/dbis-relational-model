@@ -1,10 +1,191 @@
-def compareLists(given, should):
-    correctCount = 0
+from unicodedata import name
+from IPython.display import display, Latex
+import math
+
+def compareLists(should, given):
+    badCount = 0
     for a in given:
-        if a in should:
-            correctCount += 1
-        else:
-            correctCount -= 1
+        if a not in should:
+            badCount += 1  # Superfluous item in given
+    for a in should:
+        if a not in given:
+            badCount += 1  # Missing item in given
+    return badCount
+
+
+class RM:
+    relations = []
+    subsets = []
+    intersections = []
+
+    def __init__(self):
+        self.relations = []
+        self.subsets = []
+        self.intersections = []
+        return
+
+    def addRelation(self, relation):
+        for r in self.relations:
+            if relation.name == r.name:
+                print(f"Fehler: Relation mit Name {r.name} wurde bereits hinzugefügt.")
+                return
+        self.relations.append(relation)
+
+    def addDependency(self, dependency):
+        if str(dependency.__class__.__name__) == "Subset":
+            self.subsets.append(dependency)
+            return
+        if str(dependency.__class__.__name__) == "Intersection":
+            self.intersections.append(dependency)
+            return
+        print("Fehler: An addDependency sollte entweder ein Subset oder eine Intersection übergeben werden.")
+
+    def getNumRelations(self):
+        return len(self.relations)
+
+    def getNumDependencies(self):
+        return len(self.subsets) + len(self.intersections)
+
+    def display(self):
+        for r in self.relations:
+            r.display()
+        for s in self.subsets:
+            s.display()
+        for i in self.intersections:
+            i.display()
+
+        if (len(self.relations) + len(self.subsets) + len(self.intersections) == 0):
+            display(Latex("(empty Relation)"))
+
+
+    def get_scaled_score(self, rm, scores, max_points, debug=False):
+        worst_score = self.compare_against(RM(), scores, False)
+        score = self.compare_against(rm, scores, debug)
+        penalty = (score / worst_score) * max_points
+        penalty = math.floor(penalty)
+        result = max(0, max_points - penalty)
+        print(f"Scale deducted points to exercise's total points: {penalty}")
+        print(f"Result: {result} / {max_points} points achieved")
+        return result
+
+    def compare_against(self, rm, scores, debug=False):
+        score = 0
+
+        if (debug):
+            print("Checking relations...")
+
+        # 1. Check relations
+        for r1 in self.relations:
+            for r2 in rm.relations:
+                if r1.name == r2.name:
+                    print(f"Found relation {r1.name}")
+                    missingPrimaries = compareLists(
+                        r1.primaryKeys, r2.primaryKeys)
+                    missingNormal = compareLists(
+                        r1.attributeList, r2.attributeList)
+
+                    penalty = scores["wrong_attribute"] * \
+                        (missingPrimaries + missingNormal)
+                    score += penalty
+
+                    if debug:
+                        #if missingPrimaries > 0:
+                        #    print(f"Wrong primary keys: {missingPrimaries}")
+                        #if missingNormal > 0:
+                        #    print(f"Wrong normal attributes: {missingNormal}")
+                        if (penalty > 0):
+                            print(f"Wrong attributes in relation '{r1.name}': deducting {penalty} points")
+
+                    break
+            else:
+                missingRelationPenalty =  scores["wrong_relation"] + scores["wrong_attribute"] * \
+                    (len(r1.primaryKeys) + len(r1.attributeList))
+                score += missingRelationPenalty
+                if debug:
+                    print(f"Missing relation '{r1.name}': deducting {missingRelationPenalty} points")
+
+        if debug:
+            print("Checking subsets...")
+
+        # 2. Check subsets
+        for s1 in self.subsets:
+
+            curr_best = None
+            curr_best_score = 10000
+
+            for s2 in rm.subsets:
+                if s1.lhs.relationName == s2.lhs.relationName and s1.rhs.relationName == s2.rhs.relationName:
+                    # Found correct subset
+                    # Check attributes
+                    missingLhs = compareLists(
+                        s1.lhs.attributes, s2.lhs.attributes)
+                    missingRhs = compareLists(
+                        s1.rhs.attributes, s2.rhs.attributes)
+                    curr_score = scores["wrong_attribute"] * \
+                        (missingLhs + missingRhs)
+                    if (curr_score < curr_best_score):
+                        if curr_best is not None:
+                            print("New best")
+                        curr_best_score = curr_score
+                        curr_best = s2
+
+            if curr_best is None:
+                penalty = scores["wrong_subset"] + scores["wrong_attribute"] * \
+                    (len(s1.rhs.attributes) + len(s1.lhs.attributes))
+                score += penalty
+                if debug:
+                    print(
+                        f"Missing subset lhs={s1.lhs.relationName}, rhs={s1.rhs.relationName}: deducting {penalty} points")
+            else:
+                if debug:
+                    #if missingLhs > 0:
+                    #    print(f"Wrong attributes on left side: {missingLhs}")
+                    #if missingRhs > 0:
+                    #    print(f"Wrong attributes on right side: {missingRhs}")
+                    if (curr_best_score > 0):
+                        print(f"Wrong attributes in subset lhs={s1.lhs.relationName}, rhs={s1.rhs.relationName}: deducting {curr_best_score} points")
+                score += curr_best_score
+
+        if debug:
+            print("Checking intersections...")
+
+        # 3. Check intersections
+
+        # DIRTY HACK BECAUSE OF AMBIGUITY OF SOLUTION
+        # JUST COUNT NUMBER OF INTERSECTIONS
+        missingIntersectionPenalty = max(0, len(self.intersections) -
+                     len(rm.intersections)) * scores["wrong_intersection"]
+        score += missingIntersectionPenalty
+        if (missingIntersectionPenalty > 0):
+            if debug:
+                print(f"Missing intersections: deducting {missingIntersectionPenalty} points")
+
+
+#        for i1 in self.intersections:
+#            for i2 in rm.intersections:
+#                if s1.lhs.relationName == s2.lhs.relationName and s1.rhs.relationName == s2.rhs.relationName:
+#                    # Found correct intersection
+#                    # Check attributes
+#                    missingLhs = compareLists(i1.lhs.attributes, i2.lhs.attributes)
+#                    missingRhs = compareLists(i1.rhs.attributes, i2.rhs.attributes)
+#                    if debug:
+#                        if missingLhs > 0:
+#                            print(f"Wrong attributes on left side: {missingLhs}")
+#                        if missingRhs > 0:
+#                            print(f"Wrong attributes on right side: {missingRhs}")
+#                    score += scores["wrong_attribute"] * (missingLhs + missingRhs)
+#                    break
+#            else:
+#                if debug:
+#                    print(f"Missing intersection lhs={i1.lhs.relationName}, rhs={i1.rhs.relationName}")
+#                score += scores["wrong_intersection"]
+#                score += scores["wrong_attribute"] * (len(i1.rhs.attributes) + len(i1.lhs.attributes))
+
+        if debug:
+            print(f"Total deducted points: {score}")
+
+        return score
+
 
 class ProjectedRelation:
     relationName = ""
@@ -14,96 +195,89 @@ class ProjectedRelation:
         self.relationName = relationName
         self.attributes = attributes
 
-    def print(self):
-        print(f'{self.relation.name}[{", ".join(self.attributes)}"]')
+    def getLatex(self):
+        return self.relationName.replace("_", "\\_") \
+            + "[\\text{" \
+            + ", ".join(self.attributes).replace("_", "\\_") \
+            + "}]"
+
+    def display(self):
+        display(Latex("$"+self.getLatex()+"$"))
 
     def compareTo(self, projectedRelation):
-        if (self.name != projectedRelation.name): return 0
+        if (self.relationName != projectedRelation.relationName):
+            return 0
         return max(0, compareLists(self.attributes, projectedRelation.attributes))
 
 
 class Relation:
     name = ""
-    attributeList = [] # Excluding primary keys???
+    attributeList = []  # Excluding primary keys???
     primaryKeys = []
 
-    def __init__(self, name, attributeList, primaryKeys):
+    def __init__(self, name, primaryKeys, attributeList):
         self.name = name
         self.attributeList = attributeList
         self.primaryKeys = primaryKeys
 
-    def print(self):
-        print(f'{self.relation}(<u>{", ".join(self.primaryKeys)}</u>, {", ".join(self.attributes)}")')
+    def getLatex(self):
+        return self.name.replace("_", "\\_") \
+            + "(\\text{" \
+            + ", ".join(map(lambda x: "\\underline{" + x + "}", self.primaryKeys)).replace("_", "\\_") \
+            + ("" if len(self.primaryKeys) == 0 or len(self.attributeList) == 0 else ", ") \
+            + "}\\text{" \
+            + ", ".join(self.attributeList).replace("_", "\\_") \
+            + "})"
+
+    def display(self):
+        display(Latex("$" + self.getLatex() + "$"))
 
     def compareTo(self, relation):
-        if (self.name != relation.name): return 0
+        if (self.name != relation.name):
+            return 0
         return max(0, compareLists(self.attributeList, relation.attributeList)
-            + compareLists(self.primaryKeys, relation.primaryKeys))
+                   + compareLists(self.primaryKeys, relation.primaryKeys))
 
 
 class Subset:
-    lhs
-    rhs
+    lhs = None  # Takes a projected relation
+    rhs = None  # Takes a projected relation
 
     def __init__(self, lhs, rhs):
+        if ((not isinstance(lhs, ProjectedRelation)) or (not isinstance(rhs, ProjectedRelation))):
+            print("Fehler: An ein Subset sollten zwei ProjectedRelations übergeben werden")
         self.lhs = lhs
         self.rhs = rhs
 
-    def print(self):
-        lhs.print()
-        print("⊆")
-        rhs.print()
+    def getLatex(self):
+        return self.lhs.getLatex() + "\\subseteq " + self.rhs.getLatex()
+
+    def display(self):
+        display(Latex("$" + self.getLatex() + "$"))
 
     def compareTo(self, subset):
         return self.lhs.compareTo(subset.lhs) + self.rhs.compareTo(subset.rhs)
 
+
 class Intersection:
-    lhs
-    rhs
-    equals
+    lhs = None
+    rhs = None
+    equals = ""
 
     def __init__(self, lhs, rhs, equals):
+        if ((not isinstance(lhs, ProjectedRelation)) or (not isinstance(rhs, ProjectedRelation))):
+            print("Fehler: An eine Intersection sollten zwei ProjectedRelations übergeben werden")
         self.lhs = lhs
         self.rhs = rhs
         self.equals = equals
 
-    def print(self):
-        self.lhs.print()
-        print("∩")
-        self.rhs.print()
-        print("=")
-        if (self.equals == "emptyset"):
-            print("∅")
-        else:
-            print(self.equals)
+    def getLatex(self):
+        return self.lhs.getLatex() + "\\cap " + self.rhs.getLatex() + " = " + self.equals.replace("_", "\\_")
+
+    def display(self):
+        display(Latex("$" + self.getLatex() + "$"))
 
     def compareTo(self, intersection):
-        if (self.equals != intersection.equals): return 0
+        if (self.equals != intersection.equals):
+            return 0
         return self.rhs.compareTo(intersection.rhs) + self.lhs.compareTo(intersection.lhs)
-
-
-class ERTransformationResult:
-    erTree = None
-    relations = None
-    interrelationalDependenciesSubsets = None
-    weakEntitiesIntersections = None
-    isASubsets = None
-    bigAttributesSubsets = None
-    recursionSubsets = None
-    ternaryRelationSubsets = None
-
-    def __init__(self, erTree, relations,
-        interrelationalDependenciesSubsets,
-        weakEntitiesIntersections,
-        isASubsets,
-        bigAttributesSubsets,
-        recursionSubsets,
-        ternaryRelationSubsets):
-        self.erTree = erTree
-        self.relations = relations
-        self.interrelationalDependenciesSubsets = interrelationalDependenciesSubsets
-        self.weakEntitiesIntersections = weakEntitiesIntersections
-        self.isASubsets = isASubsets
-        self.bigAttributesSubsets = bigAttributesSubsets
-        self.recursionSubsets = recursionSubsets
-        self.ternaryRelationSubsets = ternaryRelationSubsets

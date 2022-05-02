@@ -4,7 +4,7 @@ from setuptools import setup
 class Version(object):
     name="relational_model"
     description="RWTH Aachen Computer Science i5/dbis assets for Lecture Datenbanken und Informationssysteme"
-    version='0.0.1'
+    version='0.0.5'
 
 # The directory containing this file
 HERE = pathlib.Path(__file__).parent.resolve()
