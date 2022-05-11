@@ -77,8 +77,7 @@ class RM:
     def get_scaled_score(self, rm, scores, max_points, debug=False):
         worst_score = self.compare_against(RM(), scores, False)
         score = self.compare_against(rm, scores, debug)
-        penalty = (score / worst_score) * max_points
-        penalty = math.floor(penalty)
+        penalty = round((score / worst_score) * max_points)
         result = max(0, max_points - penalty)
         print(f"Scale deducted points to exercise's total points: {penalty}")
         print(f"Result: {result} / {max_points} points achieved")

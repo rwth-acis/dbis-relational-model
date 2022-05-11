@@ -1,15 +1,30 @@
 from unicodedata import name
-from IPython.display import display, Latex
+from IPython.display import display, Markdown
 import math
 
+WILDCARD = "*"
+
 def compareLists(should, given):
+
     badCount = 0
-    for a in given:
-        if a not in should:
-            badCount += 1  # Superfluous item in given
-    for a in should:
-        if a not in given:
+    should_cpy = should.copy()
+    given_copy = given.copy()
+    given_copy = [w.split("_")[-1] for w in given_copy]
+    should_cpy = [w.split("_")[-1] for w in should_cpy]
+
+    for a in given_copy:
+        if a not in should_cpy:
+            if WILDCARD in should_cpy:
+                should_cpy.remove(WILDCARD)
+            else:
+                badCount += 1  # Superfluous item in given
+
+    # In a correct solution, all wildcards should be removed by now
+
+    for a in should_cpy:
+        if a not in given_copy:
             badCount += 1  # Missing item in given
+
     return badCount
 
 
@@ -39,6 +54,7 @@ class RM:
             self.intersections.append(dependency)
             return
         print("Fehler: An addDependency sollte entweder ein Subset oder eine Intersection übergeben werden.")
+        print("Es wurde ein " + dependency.__class__.__name__ + " übergeben.")
 
     def getNumRelations(self):
         return len(self.relations)
@@ -55,14 +71,13 @@ class RM:
             i.display()
 
         if (len(self.relations) + len(self.subsets) + len(self.intersections) == 0):
-            display(Latex("(empty Relation)"))
+            display(Markdown("(empty Relation)"))
 
 
     def get_scaled_score(self, rm, scores, max_points, debug=False):
         worst_score = self.compare_against(RM(), scores, False)
         score = self.compare_against(rm, scores, debug)
-        penalty = (score / worst_score) * max_points
-        penalty = math.floor(penalty)
+        penalty = round((score / worst_score) * max_points)
         result = max(0, max_points - penalty)
         print(f"Scale deducted points to exercise's total points: {penalty}")
         print(f"Result: {result} / {max_points} points achieved")
@@ -195,14 +210,14 @@ class ProjectedRelation:
         self.relationName = relationName
         self.attributes = attributes
 
-    def getLatex(self):
-        return self.relationName.replace("_", "\\_") \
-            + "[\\text{" \
-            + ", ".join(self.attributes).replace("_", "\\_") \
-            + "}]"
+    def getMarkdown(self):
+        return self.relationName \
+            + "[" \
+            + ", ".join(self.attributes) \
+            + "]"
 
     def display(self):
-        display(Latex("$"+self.getLatex()+"$"))
+        display(Markdown(self.getMarkdown()))
 
     def compareTo(self, projectedRelation):
         if (self.relationName != projectedRelation.relationName):
@@ -220,17 +235,16 @@ class Relation:
         self.attributeList = attributeList
         self.primaryKeys = primaryKeys
 
-    def getLatex(self):
-        return self.name.replace("_", "\\_") \
-            + "(\\text{" \
-            + ", ".join(map(lambda x: "\\underline{" + x + "}", self.primaryKeys)).replace("_", "\\_") \
+    def getMarkdown(self):
+        return self.name \
+            + "(" \
+            + ", ".join(map(lambda x: "<u>" + x + "</u>", self.primaryKeys)) \
             + ("" if len(self.primaryKeys) == 0 or len(self.attributeList) == 0 else ", ") \
-            + "}\\text{" \
-            + ", ".join(self.attributeList).replace("_", "\\_") \
-            + "})"
+            + ", ".join(self.attributeList) \
+            + ")"
 
     def display(self):
-        display(Latex("$" + self.getLatex() + "$"))
+        display(Markdown(self.getMarkdown()))
 
     def compareTo(self, relation):
         if (self.name != relation.name):
@@ -244,16 +258,16 @@ class Subset:
     rhs = None  # Takes a projected relation
 
     def __init__(self, lhs, rhs):
-        if ((not isinstance(lhs, ProjectedRelation)) or (not isinstance(rhs, ProjectedRelation))):
-            print("Fehler: An ein Subset sollten zwei ProjectedRelations übergeben werden")
+        # if ((not isinstance(lhs, ProjectedRelation)) or (not isinstance(rhs, ProjectedRelation))):
+        #print("Fehler: An ein Subset sollten zwei ProjectedRelations übergeben werden")
         self.lhs = lhs
         self.rhs = rhs
 
-    def getLatex(self):
-        return self.lhs.getLatex() + "\\subseteq " + self.rhs.getLatex()
+    def getMarkdown(self):
+        return self.lhs.getMarkdown() + " ⊆ " + self.rhs.getMarkdown()
 
     def display(self):
-        display(Latex("$" + self.getLatex() + "$"))
+        display(Markdown(self.getMarkdown()))
 
     def compareTo(self, subset):
         return self.lhs.compareTo(subset.lhs) + self.rhs.compareTo(subset.rhs)
@@ -265,19 +279,18 @@ class Intersection:
     equals = ""
 
     def __init__(self, lhs, rhs, equals):
-        if ((not isinstance(lhs, ProjectedRelation)) or (not isinstance(rhs, ProjectedRelation))):
-            print("Fehler: An eine Intersection sollten zwei ProjectedRelations übergeben werden")
+        # if ((not isinstance(lhs, ProjectedRelation)) or (not isinstance(rhs, ProjectedRelation))):
+        #print("Fehler: An eine Intersection sollten zwei ProjectedRelations übergeben werden")
         self.lhs = lhs
         self.rhs = rhs
         self.equals = equals
 
-    def getLatex(self):
-        return self.lhs.getLatex() + "\\cap " + self.rhs.getLatex() + " = " + self.equals.replace("_", "\\_")
+    def getMarkdown(self):
+        return self.lhs.getMarkdown() + " ∩ " + self.rhs.getMarkdown() + " = " + self.equals
 
     def display(self):
-        display(Latex("$" + self.getLatex() + "$"))
+        display(Markdown(self.getMarkdown()))
 
     def compareTo(self, intersection):
-        if (self.equals != intersection.equals):
-            return 0
+        # self.equals will not be tested
         return self.rhs.compareTo(intersection.rhs) + self.lhs.compareTo(intersection.lhs)
